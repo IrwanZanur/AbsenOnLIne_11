@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top">
+    <style>
+      body { font-family: Arial; padding: 20px; }
+      table { border-collapse: collapse; width: 100%; margin-top: 10px; }
+      th, td { padding: 6px; border: 1px solid #ccc; text-align: center; }
+      th { background: #f0f0f0; }
+      input[type="radio"] { transform: scale(1.2); }
+      select, input[type="date"], button {
+        margin: 10px 0;
+        padding: 8px;
+        width: 100%;
+        font-size: 14px;
+      }
+      tr.filled { background-color: #e6f7ff; }
+    </style>
+    <script>
+      let siswaList = [];
+      let absensiLama = [];
+
+      function loadData() {
+        let tanggalRaw = document.getElementById("tanggal").value;
+        const kelas = document.getElementById("kelas").value;
+        if (!tanggalRaw || !kelas) return;
+
+        const tanggal = new Date(tanggalRaw).toISOString().slice(0, 10);
+
+        google.script.run.withSuccessHandler(function(dataSiswa) {
+          siswaList = dataSiswa;
+          google.script.run.withSuccessHandler(function(dataAbsensi) {
+            absensiLama = dataAbsensi;
+            tampilkanFormAbsensi();
+          }).getAbsensiByTanggalKelas(tanggal, kelas);
+        }).getSiswaByKelas(kelas);
+      }
+
+      function tampilkanFormAbsensi() {
+        const tbody = document.getElementById("tbody");
+        tbody.innerHTML = "";
+
+        siswaList.forEach((nama, i) => {
+          const statusLama = absensiLama.find(item => item.nama === nama)?.status || "";
+
+          const buatRadio = (val) =>
+            `<td><input type="radio" name="status-${i}" value="${val}" ${statusLama === val ? "checked" : ""}></td>`;
+
+          tbody.innerHTML += `
+            <tr class="${statusLama ? 'filled' : ''}">
+              <td>${nama}</td>
+              ${buatRadio("Sakit")}
+              ${buatRadio("Izin")}
+              ${buatRadio("Dispen")}
+              ${buatRadio("Alfa")}
+            </tr>
+          `;
+        });
+
+        document.getElementById("submitBtn").textContent = absensiLama.length > 0 ? "Perbarui Absensi" : "Simpan Absensi";
+      }
+
+      function simpan() {
+        let tanggalRaw = document.getElementById("tanggal").value;
+        const kelas = document.getElementById("kelas").value;
+        if (!tanggalRaw || !kelas) {
+          alert("Tanggal dan kelas wajib diisi!");
+          return;
+        }
+
+        const tanggal = new Date(tanggalRaw).toISOString().slice(0, 10);
+        const absensi = [];
+
+        siswaList.forEach((nama, i) => {
+          const radios = document.getElementsByName(`status-${i}`);
+          let status = "";
+          radios.forEach(r => { if (r.checked) status = r.value; });
+          absensi.push({ nama, status });
+        });
+
+        google.script.run.withSuccessHandler(function(msg) {
+          alert(msg);
+          document.getElementById("form").reset();
+          document.getElementById("tbody").innerHTML = "";
+        }).simpanAbsensiBatch(tanggal, kelas, absensi);
+      }
+    </script>
+  </head>
+  <body>
+    <h2>Form Absensi Harian</h2>
+    <form id="form" onsubmit="event.preventDefault(); simpan();">
+      <label for="tanggal">Tanggal:</label>
+      <input type="date" id="tanggal" onchange="loadData()" required>
+
+      <label for="kelas">Kelas:</label>
+      <select id="kelas" onchange="loadData()" required>
+        <option disabled selected>Pilih Kelas</option>
+        <option value="KGS1">KGS1</option>
+        <option value="KGS2">KGS2</option>
+        <option value="TEK1">TEK1</option>
+        <option value="TEK2">TEK2</option>
+      </select>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Nama</th>
+            <th>Sakit</th>
+            <th>Izin</th>
+            <th>Dispen</th>
+            <th>Alfa</th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+
+      <button type="submit" id="submitBtn">Simpan Absensi</button>
+    </form>
+  </body>
+</html>
